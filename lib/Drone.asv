@@ -1,0 +1,137 @@
+classdef Drone < handle
+    
+%% MEMBERS    
+    properties
+        g               % gravity acceleration
+        t               % start time
+        dt              % derivative with respect to time
+        tf              % final time
+        
+        %% Initial Condition
+
+        x              % position
+        v              % velocity
+        R              % actitude
+        omega          % angular velocity
+        
+
+        %% Body Frame
+
+        phi
+        psi
+        theta
+
+        %% Parameter
+        m              % mass 
+        b              % gyro bias
+        M              % inertial matrix
+        
+        %% State
+        s
+        stateR
+        dotS
+        DotR
+        %% Input
+        u
+        f
+        tau
+
+    end
+      
+%% METHODS
+    methods
+    %% CONSTRUCTOR
+    function obj = Drone(params, initStates, initInputs,simTime)
+            obj.g = 9.81;
+            obj.t = 0.0;
+            obj.dt = 0.01;
+            obj.tf = simTime;
+
+            obj.m = params('mass');
+            obj.b = params('gyro');
+            obj.M = params('inertialMatrix');
+            
+            obj.x = initStates('position');
+            obj.v = initStates('velocity');
+            obj.R = initStates('attitude');
+            [obj.phi, obj.theta, obj.theta] = Rot2RPY_ZXY(obj.R);
+            obj.omega = initStates('angularV');
+            
+
+            % obj.s = [obj.x;obj.v;obj.omega];
+            obj.s = [obj.x, obj.v, obj.omega];
+            obj.stateR = obj.R;
+            obj.dotS = zeros(9,1);
+            obj.DotR = zeros(3);
+
+            
+            obj.u = initInputs;
+            obj.f = obj.u(1);
+            obj.tau = obj.u(2:4);
+        end
+        
+    %% RETURNS DRONE STATE
+        function state = GetState(obj)
+            state.s = obj.s;
+            state.R = obj.R;
+
+        end
+        
+    %% STATE SPACE (DIFFERENTIAL) EQUATIONS: INCOMPLETE!
+        function obj = EvalEOM(obj)
+          
+            % Body to Worl Rotation Matrix
+            wRb = obj.R';
+
+            % Translational Motions
+            obj.dotS(1:3) = obj.v;
+            obj.dotS(4:6) = 1 / obj.m * -1*[0; 0; obj.g * obj.m] + obj.R * [0; 0; obj.f];
+
+            
+            % Angular velocity
+            obj.DotR = obj.R*skew(obj.omega);
+
+            % Angular Acceleration
+            obj.dotS(6:9) = (obj.M)\ (skew(obj.M*obj.omega)) + obj.tau;
+
+           
+        end
+
+    %% PREDICT NEXT DRONE STATE
+        function obj = UpdateState(obj)
+            obj.t = obj.t + obj.dt;
+            
+            % Find(update) the next state of obj.X
+            obj.EvalEOM();
+            obj.s = obj.s + obj.dotS.*obj.dt;
+            obj.stateR = obj.R + obj.DotR
+            
+            obj.x = obj.s(1:3);
+            obj.v = obj.s(4:6);
+            obj.R = obj.s(obj.R);
+            %obj.w = obj.s(10:12);
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%% QUIZ #0 %%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % Simulate the actual sensor output you can measure from the drone.
+            % Examples down here are not accurate model 
+%             obj.w(1) = obj.w(1) + randn() + 0.2;
+%             obj.w(2) = obj.w(2) + randn() + 0.2;
+%             obj.w(3) = obj.w(3) + randn() + 0.5;
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            
+        end
+        
+    %% CONTROLLER
+         function obj = AttitudeCtrl(obj, refSig)
+			
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%             obj.u(1) = obj.m * obj.g;
+%             obj.u(2) = 0;
+%             obj.u(3) = 0; % 
+%             obj.u(4) = 0.0; % Yaw
+% 
+            obj.T = obj.u(1);
+            obj.M = obj.u(2:4);
+         end
+    end
+end
