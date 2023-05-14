@@ -172,7 +172,7 @@ classdef Drone < handle
 
             % Angular Acceleration
             obj.dotS(7:9) = (obj.M) \ (cross(obj.omega,obj.M*obj.omega) + obj.tau);
-
+            obj.dotS(7:9) = (obj.M) \ (cross(obj.omega,obj.M*obj.omega) + obj.tau);
            
         end
 
@@ -188,12 +188,14 @@ classdef Drone < handle
             
             obj.x = obj.s(1:3);
             obj.v = obj.s(4:6);
-            obj.omega = obj.s(7:9);
+            
             obj.R = obj.stateR;
             obj.euler = rotm2eul(obj.R); 
-            obj.phi = obj.euler(1);
+            obj.phi = obj.euler(3);
             obj.theta = obj.euler(2); 
-            obj.psi = obj.euler(3);
+            obj.psi = obj.euler(1);
+
+            obj.omega = obj.s(7:9);
 
 
             %%%%%%%%%%%%%%%%%%%%% Measure %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -258,9 +260,9 @@ classdef Drone < handle
              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
              obj.u(1) = obj.m*obj.g;
 %             obj.u(1) = 0;
-             obj.u(2) = 0.1;   % yaw(psi)     Z
+             obj.u(2) = 0.0;   % roll(phi)    X
              obj.u(3) = 0.0;   % pith(theta)  Y
-             obj.u(4) = 0.0;   % roll(phi)    X
+             obj.u(4) = 0.5;   % yaw(psi)     Z
 
 
 
