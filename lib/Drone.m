@@ -93,7 +93,7 @@ classdef Drone < handle
     function obj = Drone(params, initStates, initInputs,simTime)
             obj.g = 9.81;
             obj.t = 0.0;
-            obj.dt = 0.01;
+            obj.dt = 0.1;
             obj.tf = simTime;
 
             obj.m = params('mass');
@@ -176,15 +176,44 @@ classdef Drone < handle
            
         end
 
+        function ControlStatmet(obj)
+
+            e_z = [0, 0, 1]';
+
+            obj.v_err = obj.eta - obj.k_x * obj.x_err - Tanh(obj.e_f);
+
+            % CONTROL  STATEMENT
+
+            obj.dotS(1:3) = obj.v_err;
+
+            % obj.dotS(4:6) = 1 / obj.m * (-obj.m * obj.g * e_z - obj.m * obj.ddx_d ...
+            %     + obj.f * obj.R_des * e_z + obj.f * (obj.R - obj.R_des) * e_z);
+
+            obj.dotS(4:6) = (1/obj.m) *(-obj.m * (obj.k - obj.k_x) * obj.eta ...
+                + obj.k*Tanh(obj.e_f) - obj.k_x^2*obj.x_err);
+
+            % Angular velocity
+            obj.dotR = obj.R * wedgeMap(obj.omega);
+
+            % Angular Acceleration
+            obj.dotS(7:9) = (obj.M) \ (cross(obj.omega,obj.M*obj.omega) + obj.tau);
+            
+         end
+
     %% PREDICT NEXT DRONE STATE
         function obj = UpdateState(obj)
             
             obj.t = obj.t + obj.dt;
             
             % Find(update) the next state of obj.X
-            obj.EvalEOM();
+            % obj.EvalEOM();
+            obj.ControlStatmet();
             obj.s = obj.s + obj.dotS.*obj.dt;
             obj.stateR = obj.R + obj.dotR.*obj.dt;
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            obj.e_f = obj.e_f + obj.dotE_f * obj.dt;
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             
             obj.x = obj.s(1:3);
             obj.v = obj.s(4:6);
@@ -197,6 +226,10 @@ classdef Drone < handle
 
             obj.omega = obj.s(7:9);
 
+            
+
+            
+
 
             %%%%%%%%%%%%%%%%%%%%% Measure %%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -207,67 +240,70 @@ classdef Drone < handle
         end
         
     %% CONTROLLER
-         function obj = AttitudeCtrl(obj, pos_des)
+    function obj = PositionCtrl(obj, pos_des)
              
              
-%              e_z = [0, 0, 1]';
-%              c_d = [cos(obj.psi_d), sin(obj.psi_d), 0]';
-% 
-% 
-%              obj.x_des = pos_des;
-%              obj.v_des = gradient(obj.x_des);
-%              obj.dotV_des = gradient(obj.v_des);
-%              obj.ddx_d = obj.dotV_des;
-% 
-% 
-%              obj.x_err = obj.x - obj.x_des;
-%              obj.v_err = obj.v - obj.v_des;
-% 
-%              
-%              % control law
-% 
-%              obj.eta = obj.v_err + obj.k_x*obj.x_err;
-%              obj.dotE_f = Cosh(obj.e_f)*(-obj.K_f*Tanh(obj.e_f) + obj.k_x^2 ...
-%                  * (1-(1/obj.m))* obj.x_err - obj.k*obj.eta);
-%              obj.T = obj.m*obj.g*e_z + obj.m*obj.ddx_d+ (obj.k*eye(3) ...
-%                    + obj.m* (obj.k_x * eye(3) + obj.K_f))*Tanh(obj.e_f);
-% 
-% 
-%              obj.f = norm(obj.T);
-% 
-%              % attitude trajectory
-% 
-%              c_3 = obj.T/norm(obj.T);
-%              c_2 = (wedgeMap(c_3)*c_d)/norm((wedgeMap(c_3)*c_d));
-%              c_1 = wedgeMap(c_2)*c_3;
-% 
-%              obj.R_des = [c_1, c_2, c_3];
-%              obj.dotR_des = gradient(obj.R_des);
-% 
-%              obj.omega_des = veeMap(obj.R_des'*obj.dotR_des);
-% 
-%              	
-% 
-%              obj.dotV_err = 1 / obj.m *([0; 0; -obj.m * obj.g] ...
-%                  - obj.m*obj.dotV_des + obj.f*obj.R_des*e_z ...
-%                  + obj.f*(obj.R - obj.R_des)*e_z);
-
-             
-             
+              e_z = [0, 0, 1]';
+              c_d = [cos(obj.psi_d), sin(obj.psi_d), 0]';
 
 
+             %%%%%%%%%%%%%%%%%%%   Position   %%%%%%%%%%%%%%%%%%%%%%
+
+             obj.x_des = pos_des;
+
+
+             %%%%%%%%%%%%%%%%%%%   Velocity   %%%%%%%%%%%%%%%%%%%%%%
+
+             obj.v_des = gradient(obj.x_des);
+
+             %%%%%%%%%%%%%%%%%%% Acceleration %%%%%%%%%%%%%%%%%%%%%%
+
+             obj.dotV_des = gradient(obj.v_des);
+             obj.ddx_d = obj.dotV_des;
+
+
+             obj.x_err = obj.x - obj.x_des;
+             obj.v_err = obj.v - obj.v_des;
+
+
+             % control law
+
+             obj.eta = obj.v_err + obj.k_x * obj.x_err + Tanh(obj.e_f);
+
+             obj.dotE_f = Cosh(obj.e_f)^2 * (-obj.K_f * Tanh(obj.e_f) + obj.k_x^2 ...
+                 * (1-(1/obj.m))* obj.x_err - obj.k * obj.eta);
+
+             obj.T = obj.m * obj.g * e_z + obj.m * obj.ddx_d + (obj.k * eye(3) ...
+                   + obj.m * (obj.k_x * eye(3) + obj.K_f)) * Tanh(obj.e_f);
+
+
+             obj.f = norm(obj.T);
+
+
+             % attitude trajectory
+
+             c_3 = obj.T/norm(obj.T);
+             c_2 = cross(c_3,c_d)/norm(cross(c_3,c_d));
+             c_1 = cross(c_2,c_3);
+
+             obj.R_des = [c_1, c_2, c_3];
+             obj.dotR_des = gradient(obj.R_des);
+
+             obj.omega_des = veeMap(obj.R_des'*obj.dotR_des);
 
              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-             obj.u(1) = obj.m*obj.g;
-%             obj.u(1) = 0;
-             obj.u(2) = 0.0;   % roll(phi)    X
-             obj.u(3) = 0.0;   % pith(theta)  Y
-             obj.u(4) = 0.5;   % yaw(psi)     Z
-
-
-
-             obj.f = obj.u(1);
-             obj.tau = obj.u(2:4);
+             % obj.u(1) = obj.m*obj.g;
+             % % obj.u(1) = 0.0;
+             % obj.u(2) = 0.0;   % roll(phi)    X
+             % obj.u(3) = 0.0;   % pith(theta)  Y
+             % obj.u(4) = 0.0;   % yaw(psi)     Z
+             % 
+             % 
+             % 
+             % obj.f = obj.u(1);
+             % obj.tau = obj.u(2:4);
          end
+
+         
     end
 end
