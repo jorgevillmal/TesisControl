@@ -254,11 +254,18 @@ classdef Drone < handle
 
              %%%%%%%%%%%%%%%%%%%   Velocity   %%%%%%%%%%%%%%%%%%%%%%
 
-             obj.v_des = gradient(obj.x_des);
+             % obj.v_des = gradient(obj.x_des);
+             obj.v_des = [gradient(obj.x_des(1)), gradient(obj.x_des(2)), ...
+                 gradient(obj.x_des(3))]';
 
              %%%%%%%%%%%%%%%%%%% Acceleration %%%%%%%%%%%%%%%%%%%%%%
 
-             obj.dotV_des = gradient(obj.v_des);
+             %obj.dotV_des = gradient(obj.v_des);
+
+             obj.dotV_des = [gradient(obj.v_des(1)), gradient(obj.v_des(2)), ...
+                 gradient(obj.v_des(3))]';
+
+
              obj.ddx_d = obj.dotV_des;
 
 
